@@ -55,7 +55,7 @@ export async function simulateSeasonPossession(
         fullName: simP.fullName,
         gp: 0, pts: 0, fgm: 0, fga: 0,
         fgm3: 0, fga3: 0, ftm: 0, fta: 0,
-        orb: 0, drb: 0, ast: 0, stl: 0, blk: 0, tov: 0,
+        orb: 0, drb: 0, ast: 0, stl: 0, blk: 0, tov: 0, pf: 0,
       });
     }
   }
@@ -65,19 +65,9 @@ export async function simulateSeasonPossession(
 
   for (let index = 0; index < schedule.length; index++) {
     const [homeId, awayId] = schedule[index];
-    const homeSimRoster = simRosters.get(homeId)!;
-    const awaySimRoster = simRosters.get(awayId)!;
-
-    // Apply multiplier by slightly boosting usage weights for the user team
-    const homeRoster = homeId === "user" && userMultiplier !== 1
-      ? homeSimRoster.map((p) => ({ ...p, usgWeight: p.usgWeight * userMultiplier }))
-      : homeSimRoster;
-    const awayRoster = awayId === "user" && userMultiplier !== 1
-      ? awaySimRoster.map((p) => ({ ...p, usgWeight: p.usgWeight * userMultiplier }))
-      : awaySimRoster;
 
     const gameRng = rng.fork(`g${index}`);
-    const result = simulateMatchup(homeRoster, awayRoster, gameRng, 75);
+    const result = simulateMatchup(simRosters.get(homeId)!, simRosters.get(awayId)!, gameRng, 75);
 
     // Accumulate box scores
     const accum = (teamId: string, lines: typeof result.home.lines) => {
@@ -99,6 +89,9 @@ export async function simulateSeasonPossession(
         acc.stl  += gl.stl;
         acc.blk  += gl.blk;
         acc.tov  += gl.tov;
+        if ((gl as any).pf !== undefined && (acc as any).pf !== undefined)
+          (acc as any).pf += (gl as any).pf;
+        if ('pf' in gl && (acc as any).pf !== undefined) (acc as any).pf += (gl as any).pf;
       }
     };
     accum(homeId, result.home.lines);

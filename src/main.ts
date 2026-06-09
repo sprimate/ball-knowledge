@@ -39,6 +39,8 @@ type GameState = {
   teamPopupId: string | null;
   ageUpUsed: boolean;           // one Age Up allowed per free agency period
   selectedRosterSlot: Position | null;  // tracks which roster slot is "selected" for stat display
+  agedUpSlots: Set<Position>;   // slots that have been aged up this free agency period
+  pendingLeagueChange: boolean; // deferred updateCpuRosters until entering free agency
 };
 
 const TEAM_NAMES = [
@@ -90,6 +92,8 @@ function newGame(seed: string): GameState {
     teamPopupId: null,
     ageUpUsed: false,
     selectedRosterSlot: null,
+    agedUpSlots: new Set<Position>(),
+    pendingLeagueChange: false,
   };
 }
 
@@ -133,7 +137,11 @@ function render(): void {
                 const over = cost > budget;
                 return `<span class="budget-badge ${over ? "budget-over" : ""}">Budget ${cost}/${budget}${over ? " OVER" : ""}</span>`;
               })()}
-              ${state.discountPoints > 0 ? `<span class="budget-badge">Discounts ${state.discountPoints}</span>` : ""}
+              ${(() => {
+                const used = state.pendingPicks.reduce((t, p) => t + p.discount, 0);
+                const available = state.discountPoints - used;
+                return state.discountPoints > 0 ? `<span class="budget-badge">Discounts ${available}/${state.discountPoints}</span>` : "";
+              })()}
               ${userRank ? `<span class="budget-badge">Rank ${userRank}/${LEAGUES[state.leagueIndex].teams}</span>` : ""}
               ${state.lastRecord ? `<span class="budget-badge">Record ${state.lastRecord.wins}\u2013${state.lastRecord.losses}</span>` : ""}
             </div>
@@ -142,7 +150,7 @@ function render(): void {
           <div class="slots single-row">${POSITIONS.map((slot) => renderSlot(slot)).join("")}</div>
           <div class="rules compact">
             ${draftRuleText()}
-            ${(() => { const used = state.pendingPicks.reduce((t, p) => t + p.discount, 0); return state.discountPoints > 0 ? `<span class="discount-info">Available Discounts: ${state.discountPoints - used}/${state.discountPoints}</span>` : ""; })()}
+            ${(() => { const used = state.pendingPicks.reduce((t, p) => t + p.discount, 0); const available = state.discountPoints - used; return state.discountPoints > 0 ? `<span class="discount-info">Available Discounts: ${available}/${state.discountPoints}</span>` : ""; })()}
           </div>
         </div>
 
@@ -190,7 +198,12 @@ function render(): void {
 
         <div class="panel standings-panel">
           <div class="panel-head">
-            <h2>Standings</h2>
+            <h2>${(() => {
+              const pastLeague = state.seasonHistory.length > 0
+                ? state.seasonHistory[state.seasonHistory.length - 1].leagueName
+                : LEAGUES[state.leagueIndex].name;
+              return `${pastLeague} Standings`;
+            })()}</h2>
             ${!state.isSimulating && !state.completed && !state.pendingResult && state.viewMode === "standings" ? `<button id="next-season">Free Agency →</button>` : ""}
           </div>
           <div class="standings-wrap">
@@ -214,7 +227,6 @@ function renderSlot(slot: Position): string {
   const player = pick?.player ?? state.userRoster[slot];
   const discount = pick?.discount ?? 0;
   const selectedPlayer = state.selectedPlayerId ? state.draftPool.find((p) => p.id === state.selectedPlayerId) : null;
-  const canAssign = selectedPlayer && selectedPlayer.positions.includes(slot) && state.draftMode !== "complete";
   const usedDiscounts = state.pendingPicks.reduce((total, item) => total + item.discount, 0);
   const remainingDiscounts = state.discountPoints - usedDiscounts;
   const canToggleOn = discount === 0 && remainingDiscounts > 0 && pick && pick.player.cost > 0;
@@ -226,16 +238,18 @@ function renderSlot(slot: Position): string {
   const rosterPlayer = state.userRoster[slot];
   const rp = rosterPlayer as unknown as RealPlayer;
   const canAgeUp = state.draftMode === "freeAgency"
-    && !state.ageUpUsed
-    && !pick                          // no pending replacement for this slot
+    && !state.agedUpSlots.has(slot)     // not already aged up this period
+    && !pick                            // no pending replacement for this slot
     && !!rosterPlayer
     && !!rp.bbrefId
     && !!getNextSeasonPlayer(rp, rosterPlayer.cost);
 
   const isSlotSelected = state.selectedRosterSlot === slot;
+  // Show a Replace button when a pool player is selected and can fill this slot
+  const canReplace = !!selectedPlayer && selectedPlayer.positions.includes(slot) && state.draftMode !== "complete";
 
   return `
-    <div class="slot ${canAssign ? "slot-assignable" : ""} ${player ? "slot-occupied" : ""} ${isSlotSelected ? "slot-selected" : ""}" data-slot-click="${slot}">
+    <div class="slot ${player ? "slot-occupied" : ""} ${isSlotSelected ? "slot-selected" : ""}" data-slot-click="${slot}">
       <div class="slot-title">${slot}</div>
       ${
         player
@@ -245,6 +259,7 @@ function renderSlot(slot: Position): string {
               <div class="discount-row">
                 ${pick && showDiscountToggle ? `<button data-toggle-discount="${slot}">${discount > 0 ? "Remove Discount" : "Apply Discount"}</button>` : ""}
                 ${pick ? `<button data-clear-slot="${slot}">${willReset ? "Reset" : "Clear"}</button>` : ""}
+                ${canReplace ? `<button data-replace-slot="${slot}" class="replace-btn">Replace</button>` : ""}
                 ${canAgeUp ? `<button data-age-up="${slot}" class="age-up-btn">Age Up ➡</button>` : ""}
               </div>
             </div>`
@@ -724,25 +739,28 @@ function wireEvents(): void {
   });
   document.querySelectorAll<HTMLDivElement>("[data-slot-click]").forEach((slotEl) => {
     slotEl.addEventListener("click", (e) => {
-      // Don't intercept clicks on inner buttons (clear, discount, age-up)
+      // Don't intercept clicks on inner buttons (clear, discount, age-up, replace)
       if ((e.target as HTMLElement).closest("button")) return;
       const slot = slotEl.dataset.slotClick as Position;
+      // Always: select slot to show stats
+      const pick = state.pendingPicks.find((item) => item.slot === slot);
+      const existingPlayer = pick?.player ?? state.userRoster[slot];
+      if (existingPlayer) {
+        const alreadySelected = state.selectedRosterSlot === slot;
+        state.selectedRosterSlot = alreadySelected ? null : slot;
+        state.selectedPlayerId = null;
+        render();
+      }
+    });
+  });
+  document.querySelectorAll<HTMLButtonElement>("[data-replace-slot]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const slot = btn.dataset.replaceSlot as Position;
       const selectedPlayer = state.selectedPlayerId ? state.draftPool.find((p) => p.id === state.selectedPlayerId) : null;
       if (selectedPlayer && selectedPlayer.positions.includes(slot) && state.draftMode !== "complete") {
-        // Assign selected pool player to this slot
         state.selectedPlayerId = null;
         state.selectedRosterSlot = null;
         draftPlayer(selectedPlayer.id, slot);
-      } else {
-        // Select whoever is in this slot to show their stats
-        const pick = state.pendingPicks.find((item) => item.slot === slot);
-        const existingPlayer = pick?.player ?? state.userRoster[slot];
-        if (existingPlayer) {
-          const alreadySelected = state.selectedRosterSlot === slot;
-          state.selectedRosterSlot = alreadySelected ? null : slot;
-          state.selectedPlayerId = null;
-          render();
-        }
       }
     });
   });
@@ -750,11 +768,11 @@ function wireEvents(): void {
     btn.addEventListener("click", () => {
       const slot = btn.dataset.ageUp as Position;
       const rosterPlayer = state.userRoster[slot] as unknown as RealPlayer;
-      if (!rosterPlayer || state.ageUpUsed) return;
+      if (!rosterPlayer || state.agedUpSlots.has(slot)) return;
       const next = getNextSeasonPlayer(rosterPlayer, rosterPlayer.cost);
       if (!next) return;
       state.userRoster[slot] = next as unknown as Player;
-      state.ageUpUsed = true;
+      state.agedUpSlots.add(slot);
       state.selectedRosterSlot = slot;
       render();
     });
@@ -776,6 +794,7 @@ function wireEvents(): void {
     if (!isNaN(v) && v >= 0) state.multiplier = v;
   });
   document.querySelector("#next-season")?.addEventListener("click", () => {
+    if (state.pendingLeagueChange) { updateCpuRosters(); state.pendingLeagueChange = false; }
     state.viewMode = "draft";
     render();
   });
@@ -787,6 +806,7 @@ function wireEvents(): void {
     render();
   });
   document.querySelector("#continue-to-draft")?.addEventListener("click", () => {
+    if (state.pendingLeagueChange) { updateCpuRosters(); state.pendingLeagueChange = false; }
     state.pendingResult = null;
     state.viewMode = "draft";
     render();
@@ -877,7 +897,15 @@ function canSubmitDraft(): boolean {
 
 function submitDraft(): void {
   if (!canSubmitDraft()) return;
-  state.userRoster = projectedRoster();
+  // Burn any discounts permanently into each player's cost so they persist into future seasons.
+  const committedRoster = projectedRoster();
+  for (const pick of state.pendingPicks) {
+    if (pick.discount > 0) {
+      const p = committedRoster[pick.slot];
+      if (p) committedRoster[pick.slot] = { ...p, cost: Math.max(0, p.cost - pick.discount) };
+    }
+  }
+  state.userRoster = committedRoster;
   state.draftPool = state.draftPool.filter((player) => !state.pendingPicks.some((pick) => pick.player.id === player.id));
   if (state.draftMode === "initial") {
     createInitialTeams();
@@ -1018,22 +1046,24 @@ function finishSeason(): void {
   }
 
   state.discountPoints = rank === 1 ? 2 : rank === 2 ? 1 : 0;
-  // Budget: +1 every season, +1 extra on promotion, never goes down
+  // Budget: demoted=+0, stayed=+1, promoted=+2
   const promoted = outcome === "promoted";
-  state.budget = Math.min(25, state.budget + 1 + (promoted ? 1 : 0));
+  state.budget = Math.min(25, state.budget + (promoted ? 2 : outcome === "demoted" ? 0 : 1));
   const oldLeague = state.leagueIndex;
   if (promoted) state.leagueIndex = Math.min(LEAGUES.length - 1, state.leagueIndex + 1);
   else if (outcome === "demoted") state.leagueIndex = Math.max(0, state.leagueIndex - 1);
   const changedLeague = oldLeague !== state.leagueIndex;
   state.seasonYear += 1;
   state.draftMode = "freeAgency";
-  state.ageUpUsed = false;
+  state.agedUpSlots = new Set<Position>();
+  state.pendingLeagueChange = changedLeague;
   // Fork the rng by season/league so each free agency draws from a fresh shuffle
   // of the full player pool — prevents the same players showing every season.
   state.draftPool = buildTierPool(state.leagueIndex, state.rng.fork(`fa-${state.leagueIndex}-${state.seasonYear}`), 999);
   state.pendingPicks = [];
   state.status = `${outcome === "promoted" ? "Promoted" : outcome === "demoted" ? "Demoted" : "Stayed put"} in ${LEAGUES[state.leagueIndex].name}. Sign new players or keep your roster.`;
-  if (changedLeague) updateCpuRosters();
+  // updateCpuRosters is deferred to when the user actually enters free agency
+  // so that standings team popups still work on the post-season screen.
 }
 
 function updateCpuRosters(): void {
@@ -1089,6 +1119,8 @@ function renderSeasonResultOverlay(record: SeasonRecord): string {
     champion: "🏆 CHAMPION",
   };
   const outcomeLabel = outcomeMap[record.outcome];
+  const budgetGained = record.outcome === "promoted" ? 2 : record.outcome === "demoted" ? 0 : 1;
+  const discountsGained = record.rank === 1 ? 2 : record.rank === 2 ? 1 : 0;
   return `
     <div class="overlay-backdrop" id="season-result-overlay">
       <div class="result-card">
@@ -1099,6 +1131,10 @@ function renderSeasonResultOverlay(record: SeasonRecord): string {
         <div class="result-record">${record.wins}–${record.losses}</div>
         <div class="result-rank">${medal} #${record.rank} <span class="result-rank-of">of ${record.totalTeams}</span></div>
         <div class="result-outcome outcome-${record.outcome}">${outcomeLabel}</div>
+        <div class="result-rewards">
+          <span class="result-reward">Budget +${budgetGained}</span>
+          <span class="result-reward">Discounts +${discountsGained}</span>
+        </div>
         <button class="result-continue" id="close-result">Close</button>
       </div>
     </div>

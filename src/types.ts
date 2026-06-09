@@ -127,6 +127,7 @@ export type PlayerSeasonLine = {
   stl: number;
   blk: number;
   tov: number;
+  pf: number;
 };
 
 /** Season box totals keyed by teamId. */

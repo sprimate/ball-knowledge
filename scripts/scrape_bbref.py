@@ -352,6 +352,69 @@ def scrape_team(abbr: str, year: int) -> tuple[str, dict] | None:
         log(f"  WARN no players parsed for {abbr} {year}")
         return None
 
+    # ── Per-100-possessions table: merge p100_* stats ─────────────────────────
+    # Table ID is 'per_poss'. Stat IDs share names with totals but represent
+    # per-100-poss values; we prefix them p100_ to keep the distinction clear.
+    p100_map: dict[tuple, dict] = {}
+    per_poss_table = find_table(soup, "per_poss")
+    if per_poss_table:
+        for row in per_poss_table.find_all("tr"):
+            row_class = row.get("class", [])
+            if "thead" in row_class:
+                continue
+            name_cell = row.find("td", {"data-stat": "name_display"})
+            if name_cell is None:
+                continue
+            p100_name = clean_name(name_cell.get_text())
+            if not p100_name or p100_name == "Player" or p100_name == "Team Totals":
+                continue
+
+            p100_link = name_cell.find("a")
+            p100_id: str | None = None
+            if p100_link and p100_link.get("href"):
+                p100_id = p100_link["href"].rstrip("/").split("/")[-1].replace(".html", "")
+
+            def gp100(stat: str) -> str:
+                cell = row.find("td", {"data-stat": stat})
+                return cell.get_text().strip() if cell else ""
+
+            p100_team_raw = gp100("team_id").strip()
+            p100_team = None if (not p100_team_raw or p100_team_raw == "0") else p100_team_raw
+            p100_data = {
+                "p100_fgm":   float_cell(gp100("fg_per_poss")),
+                "p100_fga":   float_cell(gp100("fga_per_poss")),
+                "p100_2pm":   float_cell(gp100("fg2_per_poss")),
+                "p100_2pa":   float_cell(gp100("fg2a_per_poss")),
+                "p100_3pm":   float_cell(gp100("fg3_per_poss")),
+                "p100_3pa":   float_cell(gp100("fg3a_per_poss")),
+                "p100_ftm":   float_cell(gp100("ft_per_poss")),
+                "p100_fta":   float_cell(gp100("fta_per_poss")),
+                "p100_orb":   float_cell(gp100("orb_per_poss")),
+                "p100_drb":   float_cell(gp100("drb_per_poss")),
+                "p100_reb":   float_cell(gp100("trb_per_poss")),
+                "p100_ast":   float_cell(gp100("ast_per_poss")),
+                "p100_stl":   float_cell(gp100("stl_per_poss")),
+                "p100_blk":   float_cell(gp100("blk_per_poss")),
+                "p100_tov":   float_cell(gp100("tov_per_poss")),
+                "p100_pf":    float_cell(gp100("pf_per_poss")),
+                "p100_pts":   float_cell(gp100("pts_per_poss")),
+            }
+
+            p100_id_key = p100_id or p100_name
+            p100_map[(p100_id_key, p100_team)] = p100_data
+            if p100_team is not None:
+                p100_map.setdefault((p100_id_key, None), p100_data)
+
+    # Merge per-100 stats into each player dict.
+    for p in players:
+        pid   = p["bbref_id"] or p["name"]
+        pteam = p["team"]
+        p100  = p100_map.get((pid, pteam)) or p100_map.get((pid, None)) or {}
+        for field in ("p100_fgm","p100_fga","p100_2pm","p100_2pa","p100_3pm","p100_3pa",
+                      "p100_ftm","p100_fta","p100_orb","p100_drb","p100_reb",
+                      "p100_ast","p100_stl","p100_blk","p100_tov","p100_pf","p100_pts"):
+            p[field] = p100.get(field, None)   # None = not available (old data)
+
     # ── Advanced table: merge 3PAr, FTr, ORB%, DRB%, AST%, STL%, BLK%, TOV% ──
     # Keyed by (bbref_id, team) to correctly match traded-player stint rows.
     adv_map: dict[tuple, dict] = {}

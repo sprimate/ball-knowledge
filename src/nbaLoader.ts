@@ -18,6 +18,38 @@ import { fantasyScore, gameScore, ovrToCost } from "./data";
 import { Player, Position, Roster, Stats, Team } from "./types";
 
 // ---------------------------------------------------------------------------
+// Per-100-possessions stats shape
+// ---------------------------------------------------------------------------
+
+/**
+ * Per-100-possessions stats for a player.
+ * Sourced from BBRef's per_poss table when available; otherwise approximated
+ * as (total_stat / total_mp) * 48  (per-48 min ≈ per-100 poss at avg pace).
+ * Named with the "per100" namespace on RealPlayer to make the source clear.
+ */
+export type Per100Stats = {
+  /** 2-point field goals made per 100 poss */
+  twom:    number;
+  /** 2-point field goals attempted per 100 poss */
+  twoa:    number;
+  fgm:     number;
+  fga:     number;
+  threes:  number;   // 3PM
+  threepa: number;   // 3PA
+  ftm:     number;
+  fta:     number;
+  orb:     number;
+  drb:     number;
+  reb:     number;
+  ast:     number;
+  stl:     number;
+  blk:     number;
+  tov:     number;
+  pf:      number;
+  pts:     number;
+};
+
+// ---------------------------------------------------------------------------
 // Raw JSON shape (what the scraper writes)
 // ---------------------------------------------------------------------------
 
@@ -57,6 +89,24 @@ export type NBAPlayerRaw = {
   blk_pct?: number;
   "3par"?: number;   // 3PA/FGA ratio (0-1)
   ftr?: number;      // FTA/FGA ratio (0-1)
+  // Per-100-possessions stats (null = not yet scraped, will be approximated)
+  p100_fgm?:  number | null;
+  p100_fga?:  number | null;
+  p100_2pm?:  number | null;
+  p100_2pa?:  number | null;
+  p100_3pm?:  number | null;
+  p100_3pa?:  number | null;
+  p100_ftm?:  number | null;
+  p100_fta?:  number | null;
+  p100_orb?:  number | null;
+  p100_drb?:  number | null;
+  p100_reb?:  number | null;
+  p100_ast?:  number | null;
+  p100_stl?:  number | null;
+  p100_blk?:  number | null;
+  p100_tov?:  number | null;
+  p100_pf?:   number | null;
+  p100_pts?:  number | null;
 };
 
 export type NBATeamRaw = {
@@ -77,11 +127,12 @@ export type RealPlayer = Player & {
   gp: number;
   gs: number;
   mpg: number;       // minutes per game (for opponent lineup selection)
+  per100: Per100Stats;
   // Identity & age (present once new scraper data is loaded)
   bbrefId?: string;
   age?: number;
   teamCode?: string; // e.g. "CHI", "TOT"
-  // Advanced metrics, normalised to 0-1 (% fields divided by 100)
+  // Advanced metrics
   tov_pct?: number;
   usg_pct?: number;
   orb_pct?: number;
@@ -350,7 +401,9 @@ function buildRealTeam(key: string, raw: NBATeamRaw): RealTeam {
     // Old data predating the new scraper has no is_trade_row field and passes through unchanged.
     .filter((p) => p.gp > 0 && p.name !== "Team Totals" && p.is_trade_row !== true)
     .map((p, i) => {
-      const gp = p.gp;
+      const gp  = p.gp;
+      const mp   = p.mp;   // total minutes — needed for per-100 approximation
+      const mpg  = mp / gp;
       const pgStats: Stats = {
         pts:     r(p.pts    / gp),
         threes:  r(p["3pm"] / gp),
@@ -374,6 +427,30 @@ function buildRealTeam(key: string, raw: NBATeamRaw): RealTeam {
         .filter((pos): pos is Position => pos !== null);
       const resolvedPositions: Position[] = positions.length > 0 ? positions : [primaryPos];
 
+      // Per-100-poss: use scraped p100_* if present, otherwise approximate
+      // as (total / mp) * 48.  Per-48 min ≈ per-100 poss at ~100 pace.
+      const p100 = (f: number | null | undefined, total: number): number =>
+        f != null ? r(f) : mp > 0 ? r(total / mp * 48) : 0;
+      const per100: Per100Stats = {
+        fgm:     p100(p.p100_fgm,  p.fgm),
+        fga:     p100(p.p100_fga,  p.fga),
+        twom:    p100(p.p100_2pm,  p.fgm - p["3pm"]),
+        twoa:    p100(p.p100_2pa,  p.fga - p["3pa"]),
+        threes:  p100(p.p100_3pm,  p["3pm"]),
+        threepa: p100(p.p100_3pa,  p["3pa"]),
+        ftm:     p100(p.p100_ftm,  p.ftm),
+        fta:     p100(p.p100_fta,  p.fta),
+        orb:     p100(p.p100_orb,  p.orb),
+        drb:     p100(p.p100_drb,  p.drb),
+        reb:     p100(p.p100_reb,  p.reb),
+        ast:     p100(p.p100_ast,  p.ast),
+        stl:     p100(p.p100_stl,  p.stl),
+        blk:     p100(p.p100_blk,  p.blk),
+        tov:     p100(p.p100_tov,  p.tov),
+        pf:      p100(p.p100_pf,   p.pf),
+        pts:     p100(p.p100_pts,  p.pts),
+      };
+
       return {
         id: `${key}-${i}-${p.name.replace(/\s+/g, "-").toLowerCase()}`,
         fullName: p.name,
@@ -386,12 +463,13 @@ function buildRealTeam(key: string, raw: NBATeamRaw): RealTeam {
         teamKey: key,
         gp,
         gs: p.gs,
-        mpg: r(p.mp / gp),
+        age: p.age ?? null,
+        mpg: r(mpg),
+        per100,
         // Identity
         bbrefId:  p.bbref_id,
-        age:      p.age,
         teamCode: p.team ?? undefined,
-        // Advanced metrics (passed through; % fields stay as-is for possessionSim.toSimPlayer)
+        // Advanced metrics (passed through)
         tov_pct:  p.tov_pct,
         usg_pct:  p.usg_pct,
         orb_pct:  p.orb_pct,

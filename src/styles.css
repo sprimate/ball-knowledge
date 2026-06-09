@@ -304,6 +304,14 @@ h3 {
 .age-up-btn:hover {
   background: #3a6a3a;
 }
+.replace-btn {
+  background: #4a2800;
+  border-color: #e8621a;
+  color: #ffb07a;
+}
+.replace-btn:hover {
+  background: #7a3e00;
+}
 
 .rules {
   margin-top: 12px;
@@ -707,6 +715,22 @@ select {
 .outcome-demoted   { color: #e05252; }
 .outcome-stayed    { color: #a8bfcc; }
 .outcome-champion  { color: #f5c842; }
+
+.result-rewards {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin: 0.5rem 0 0.25rem;
+}
+.result-reward {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #f5c842;
+  background: rgba(245,200,66,0.1);
+  border: 1px solid rgba(245,200,66,0.3);
+  border-radius: 5px;
+  padding: 0.2rem 0.6rem;
+}
 
 .result-continue {
   margin-top: 0.75rem;
