@@ -69,7 +69,11 @@ export async function simulateSeasonPossession(
     const gameRng = rng.fork(`g${index}`);
     const result = simulateMatchup(simRosters.get(homeId)!, simRosters.get(awayId)!, gameRng, 75);
 
-    // Accumulate box scores
+    // Apply handicap: add bonus points to user team's score for win determination only
+    let hPts = result.home.pts;
+    let aPts = result.away.pts;
+    if (homeId === "user") hPts += userMultiplier;
+    else if (awayId === "user") aPts += userMultiplier;
     const accum = (teamId: string, lines: typeof result.home.lines) => {
       const teamLines = boxStats.get(teamId)!;
       for (const gl of lines) {
@@ -97,15 +101,13 @@ export async function simulateSeasonPossession(
     accum(homeId, result.home.lines);
     accum(awayId, result.away.lines);
 
-    // Update standings
-    const hPts = result.home.pts;
-    const aPts = result.away.pts;
+    // Update standings (pointsFor uses raw sim pts; win uses handicap-adjusted pts)
     const hSt = standingByTeam.get(homeId)!;
     const aSt = standingByTeam.get(awayId)!;
-    hSt.pointsFor  += hPts;
-    hSt.pointsAgainst += aPts;
-    aSt.pointsFor  += aPts;
-    aSt.pointsAgainst += hPts;
+    hSt.pointsFor  += result.home.pts;
+    hSt.pointsAgainst += result.away.pts;
+    aSt.pointsFor  += result.away.pts;
+    aSt.pointsAgainst += result.home.pts;
     if (hPts !== aPts) {
       if (hPts > aPts) { hSt.wins++; aSt.losses++; }
       else { aSt.wins++; hSt.losses++; }

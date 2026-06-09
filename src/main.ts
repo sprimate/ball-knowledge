@@ -40,7 +40,10 @@ type GameState = {
   ageUpUsed: boolean;           // one Age Up allowed per free agency period
   selectedRosterSlot: Position | null;  // tracks which roster slot is "selected" for stat display
   agedUpSlots: Set<Position>;   // slots that have been aged up this free agency period
-  pendingLeagueChange: boolean; // deferred updateCpuRosters until entering free agency
+  pendingLeagueChange: boolean;
+  showOvr: boolean;
+  maxHandicap: number;
+  championOverlayDismissed: boolean;
 };
 
 const TEAM_NAMES = [
@@ -83,7 +86,7 @@ function newGame(seed: string): GameState {
     draftViewMode: "simple",
     statsMode: "pg",
     costFilter: [],
-    multiplier: 1,
+    multiplier: 0,
     selectedPlayerId: null,
     seasonHistory: [],
     pendingResult: null,
@@ -94,6 +97,9 @@ function newGame(seed: string): GameState {
     selectedRosterSlot: null,
     agedUpSlots: new Set<Position>(),
     pendingLeagueChange: false,
+    showOvr: localStorage.getItem("showOvr") === "1",
+    maxHandicap: 0,
+    championOverlayDismissed: false,
   };
 }
 
@@ -116,12 +122,12 @@ function render(): void {
         </div>
         <div class="meta">
           <span>Seed <b>${state.seed}</b></span>
-          <label class="multiplier-label">Multiplier <input id="multiplier" type="number" value="${state.multiplier}" step="0.1" min="0" /></label>
+          <label class="multiplier-label">Handicap <input id="multiplier" type="number" value="${state.multiplier}" step="1" min="0" /></label>
+          <label class="multiplier-label"><input id="show-ovr" type="checkbox" ${state.showOvr ? "checked" : ""} /> Show OVR</label>
         </div>
         <div class="actions">
           <button id="restart-same">Restart Same</button>
           <button id="restart-new">New Seed</button>
-          <button id="toggle-data-view">Data ↗</button>
         </div>
       </section>
 
@@ -211,7 +217,7 @@ function render(): void {
           </div>
         </div>
       </section>
-      ${state.completed ? renderChampionshipOverlay() : state.pendingResult ? renderSeasonResultOverlay(state.pendingResult) : ""}
+      ${state.completed && !state.championOverlayDismissed ? renderChampionshipOverlay() : state.pendingResult ? renderSeasonResultOverlay(state.pendingResult) : ""}
       ${state.teamPopupId ? renderTeamPopup(state.teamPopupId) : ""}
     </main>
   `;
@@ -255,7 +261,14 @@ function renderSlot(slot: Position): string {
         player
           ? `<div class="slot-player">
               <b>${seasonLabel(player.seasonYear)} ${player.fullName}${(player as unknown as RealPlayer).age != null ? ` (${(player as unknown as RealPlayer).age})` : ""}</b>
-              <span>${player.positions.join("/")} | ${player.normalizedRating} OVR | ${discount > 0 ? `<span class="slot-cost-original">$${player.cost}</span> <span class="slot-cost-final">$${Math.max(0, player.cost - discount)}</span>` : `<span class="slot-cost-final">$${player.cost}</span>`}</span>
+              <span>${player.positions.join("/")}${state.showOvr ? ` | ${player.normalizedRating} OVR` : ""} | ${discount > 0 ? `<span class="slot-cost-original">$${player.cost}</span> <span class="slot-cost-final">$${Math.max(0, player.cost - discount)}</span>` : (() => {
+                const nat = (player as any).naturalCost;
+                if (nat != null) {
+                  const cheaper = player.cost < nat;
+                  return `<span class="slot-cost-original">$${nat}</span> <span class="slot-cost-final ${cheaper ? 'cost-green' : 'cost-red'}">$${player.cost}</span>`;
+                }
+                return `<span class="slot-cost-final">$${player.cost}</span>`;
+              })()}</span>
               <div class="discount-row">
                 ${pick && showDiscountToggle ? `<button data-toggle-discount="${slot}">${discount > 0 ? "Remove Discount" : "Apply Discount"}</button>` : ""}
                 ${pick ? `<button data-clear-slot="${slot}">${willReset ? "Reset" : "Clear"}</button>` : ""}
@@ -263,7 +276,10 @@ function renderSlot(slot: Position): string {
                 ${canAgeUp ? `<button data-age-up="${slot}" class="age-up-btn">Age Up ➡</button>` : ""}
               </div>
             </div>`
-          : `<span class="empty">Open slot</span>`
+          : `<div class="slot-player slot-empty-assign">
+              <span class="empty">Open slot</span>
+              ${canReplace ? `<div class="discount-row"><button data-replace-slot="${slot}" class="replace-btn">Assign</button></div>` : ""}
+            </div>`
       }
     </div>
   `;
@@ -289,7 +305,8 @@ function renderSimpleDraft(): string {
       const isAssigned = state.pendingPicks.some((pk) => pk.player.id === player.id);
       const rp = player as unknown as import("./nbaLoader").RealPlayer;
       const ageStr = rp.age != null ? ` (${rp.age})` : "";
-      return `<div class="sg-cell${isSelected ? " sg-selected" : ""}${isAssigned ? " sg-assigned" : ""}" data-select-player="${player.id}"><span class="sg-year">${seasonLabel(player.seasonYear)}${ageStr}</span>${player.fullName}</div>`;
+      const ovrStr = state.showOvr ? `<span class="sg-ovr">${player.normalizedRating}</span>` : "";
+      return `<div class="sg-cell${isSelected ? " sg-selected" : ""}${isAssigned ? " sg-assigned" : ""}" data-select-player="${player.id}"><span class="sg-year">${seasonLabel(player.seasonYear)}${ageStr}</span>${player.fullName}${ovrStr}</div>`;
     }).join("");
     return `<div class="sg-cost-label">$${cost}</div>${cells}`;
   }).join("");
@@ -742,10 +759,13 @@ function wireEvents(): void {
       // Don't intercept clicks on inner buttons (clear, discount, age-up, replace)
       if ((e.target as HTMLElement).closest("button")) return;
       const slot = slotEl.dataset.slotClick as Position;
-      // Always: select slot to show stats
       const pick = state.pendingPicks.find((item) => item.slot === slot);
       const existingPlayer = pick?.player ?? state.userRoster[slot];
-      if (existingPlayer) {
+      const selectedPlayer = state.selectedPlayerId ? state.draftPool.find((p) => p.id === state.selectedPlayerId) : null;
+      if (!existingPlayer) {
+        // Empty slot: do nothing on bare click; use the Assign button instead
+      } else if (existingPlayer) {
+        // Occupied slot: toggle stat view
         const alreadySelected = state.selectedRosterSlot === slot;
         state.selectedRosterSlot = alreadySelected ? null : slot;
         state.selectedPlayerId = null;
@@ -793,6 +813,11 @@ function wireEvents(): void {
     const v = parseFloat(multInput.value);
     if (!isNaN(v) && v >= 0) state.multiplier = v;
   });
+  document.querySelector<HTMLInputElement>("#show-ovr")?.addEventListener("change", (e) => {
+    state.showOvr = (e.target as HTMLInputElement).checked;
+    localStorage.setItem("showOvr", state.showOvr ? "1" : "0");
+    render();
+  });
   document.querySelector("#next-season")?.addEventListener("click", () => {
     if (state.pendingLeagueChange) { updateCpuRosters(); state.pendingLeagueChange = false; }
     state.viewMode = "draft";
@@ -809,6 +834,18 @@ function wireEvents(): void {
     if (state.pendingLeagueChange) { updateCpuRosters(); state.pendingLeagueChange = false; }
     state.pendingResult = null;
     state.viewMode = "draft";
+    render();
+  });
+  document.querySelector("#tl-roster-toggle")?.addEventListener("click", (e) => {
+    const btn = e.currentTarget as HTMLButtonElement;
+    const rows = document.querySelectorAll<HTMLElement>(".tl-roster-row");
+    const showing = btn.dataset.open === "1";
+    rows.forEach((r) => { r.style.display = showing ? "none" : "flex"; });
+    btn.dataset.open = showing ? "0" : "1";
+    btn.textContent = showing ? "Show Rosters ▾" : "Hide Rosters ▴";
+  });
+  document.querySelector("#champ-close")?.addEventListener("click", () => {
+    state.championOverlayDismissed = true;
     render();
   });
   document.querySelector("#champ-restart-same")?.addEventListener("click", () => {
@@ -1038,6 +1075,7 @@ function finishSeason(): void {
   state.seasonHistory.push(record);
   state.pendingResult = record;
   state.lastRecord = { wins: record.wins, losses: record.losses };
+  if (state.multiplier > state.maxHandicap) state.maxHandicap = state.multiplier;
 
   if (isChampion) {
     state.completed = true;
@@ -1152,9 +1190,26 @@ function renderTeamPopup(teamId: string): string {
 
   const rows = lines
     .filter((l) => l.gp > 0)
-    .sort((a, b) => b.pts - a.pts)
-    .map((l) => `
+    .sort((a, b) => {
+      const posOrder: Record<string, number> = { PG: 0, SG: 1, SF: 2, PF: 3, C: 4 };
+      const aPos = (state.teams.find((t) => t.id === teamId)?.roster["PG"]?.id === a.playerId ? "PG"
+        : state.teams.find((t) => t.id === teamId)?.roster["SG"]?.id === a.playerId ? "SG"
+        : state.teams.find((t) => t.id === teamId)?.roster["SF"]?.id === a.playerId ? "SF"
+        : state.teams.find((t) => t.id === teamId)?.roster["PF"]?.id === a.playerId ? "PF"
+        : state.teams.find((t) => t.id === teamId)?.roster["C"]?.id === a.playerId ? "C" : "C");
+      const bPos = (state.teams.find((t) => t.id === teamId)?.roster["PG"]?.id === b.playerId ? "PG"
+        : state.teams.find((t) => t.id === teamId)?.roster["SG"]?.id === b.playerId ? "SG"
+        : state.teams.find((t) => t.id === teamId)?.roster["SF"]?.id === b.playerId ? "SF"
+        : state.teams.find((t) => t.id === teamId)?.roster["PF"]?.id === b.playerId ? "PF"
+        : state.teams.find((t) => t.id === teamId)?.roster["C"]?.id === b.playerId ? "C" : "C");
+      return (posOrder[aPos] ?? 9) - (posOrder[bPos] ?? 9);
+    })
+    .map((l) => {
+      const team = state.teams.find((t) => t.id === teamId);
+      const pos = team ? (POSITIONS.find((p) => team.roster[p]?.id === l.playerId) ?? "—") : "—";
+      return `
       <tr>
+        <td class="pop-pos">${pos}</td>
         <td class="pop-name">${l.fullName}</td>
         <td>${l.gp}</td>
         <td class="pop-pts">${pg(l.pts, l.gp)}</td>
@@ -1170,7 +1225,8 @@ function renderTeamPopup(teamId: string): string {
         <td>${pg(l.blk, l.gp)}</td>
         <td class="pop-tov">${pg(l.tov, l.gp)}</td>
       </tr>
-    `).join("");
+    `;
+    }).join("");
 
   const totGP  = Math.max(...lines.map((l) => l.gp), 1);
   const tot    = lines.reduce((acc, l) => ({
@@ -1183,6 +1239,7 @@ function renderTeamPopup(teamId: string): string {
 
   const totRow = `
     <tr class="pop-totals">
+      <td></td>
       <td>TEAM / G</td>
       <td>${totGP}</td>
       <td class="pop-pts">${pg(tot.pts, totGP)}</td>
@@ -1215,7 +1272,7 @@ function renderTeamPopup(teamId: string): string {
             <table class="pop-table">
               <thead>
                 <tr>
-                  <th>Player</th><th>GP</th><th>PTS</th>
+                  <th>Pos</th><th>Player</th><th>GP</th><th>PTS</th>
                   <th>FG</th><th>FG%</th>
                   <th>3PT</th><th>3P%</th>
                   <th>FT</th><th>FT%</th>
@@ -1251,11 +1308,15 @@ function renderChampionshipOverlay(): string {  const totalWins = state.seasonHi
           <div class="champion-stat"><span>${state.seasonHistory.length}</span><label>Seasons</label></div>
           ${goldCount > 0 ? `<div class="champion-stat"><span>🥇 ×${goldCount}</span><label>Gold Seasons</label></div>` : ""}
           ${silverCount > 0 ? `<div class="champion-stat"><span>🥈 ×${silverCount}</span><label>Silver Seasons</label></div>` : ""}
+          ${state.maxHandicap > 0 ? `<div class="champion-stat"><span>+${state.maxHandicap}</span><label>Max Handicap</label></div>` : ""}
         </div>
 
         <div class="champion-timeline-wrap">
-          <h2>Season Timeline</h2>
-          <div class="champion-timeline">
+          <div class="tl-header">
+            <h2>Season Timeline</h2>
+            <button class="tl-toggle" id="tl-roster-toggle">Show Rosters ▾</button>
+          </div>
+          <div class="champion-timeline" id="champion-timeline">
             ${state.seasonHistory.map((r) => {
               const medal = r.rank === 1 && r.outcome !== "champion" ? "🥇" : r.rank === 2 ? "🥈" : "";
               const outcomeMap: Record<SeasonRecord["outcome"], string> = {
@@ -1272,6 +1333,14 @@ function renderChampionshipOverlay(): string {  const totalWins = state.seasonHi
                   <span class="tl-rank">${medal}${r.rank}/${r.totalTeams}</span>
                   <span class="tl-outcome">${outcomeMap[r.outcome]}</span>
                 </div>
+                <div class="timeline-roster tl-roster-row" style="display:none">${POSITIONS.map((slot) => {
+                  const p = r.roster[slot];
+                  if (!p) return "";
+                  const rp = p as unknown as import("./nbaLoader").RealPlayer;
+                  const age = rp.age != null ? ` (${rp.age})` : "";
+                  const yr = String(p.seasonYear).slice(2) + "-" + String(p.seasonYear + 1).slice(2);
+                  return `<span class="tl-rplayer"><b>${slot}</b> ${yr} ${p.fullName}${age} – ${p.normalizedRating} OVR</span>`;
+                }).filter(Boolean).join("")}</div>
               `;
             }).join("")}
           </div>
@@ -1292,6 +1361,7 @@ function renderChampionshipOverlay(): string {  const totalWins = state.seasonHi
         </div>
 
         <div class="champion-actions">
+          <button id="champ-close">✕ View Standings</button>
           <button id="champ-restart-same">↩ Restart Same Seed</button>
           <button id="champ-restart-new">✦ New Seed</button>
         </div>

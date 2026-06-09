@@ -26,6 +26,7 @@ export type Player = {
   fantasyScore: number;
   normalizedRating: number;
   cost: number;
+  naturalCost?: number; // original cost before Age Up lock
 };
 
 export type Slot = Position;

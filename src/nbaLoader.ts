@@ -313,7 +313,8 @@ export function getNextSeasonPlayer(player: RealPlayer, lockedCost: number): Rea
   for (const team of _teams) {
     for (const p of team.players) {
       if (p.bbrefId === player.bbrefId && p.seasonYear === targetYear) {
-        return { ...p, cost: lockedCost };
+        const natural = p.cost;
+        return { ...p, cost: lockedCost, naturalCost: natural !== lockedCost ? natural : undefined };
       }
     }
   }
