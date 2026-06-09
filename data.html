@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ball Knowledge — Data</title>
+    <style>
+      *, *::before, *::after { box-sizing: border-box; }
+      body { margin: 0; background: #111; color: #e0e0e0; font-family: system-ui, sans-serif; font-size: 14px; display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
+      #app { display: contents; }
+      .loading { padding: 2rem; color: #888; }
+
+      header { flex-shrink: 0; padding: 10px 16px; background: #1a1a1a; border-bottom: 1px solid #2e2e2e; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+      header a { color: #e8621a; text-decoration: none; font-weight: 600; white-space: nowrap; }
+      header a:hover { text-decoration: underline; }
+      h1 { margin: 0; font-size: 1rem; font-weight: 700; white-space: nowrap; }
+      .count { font-weight: 400; color: #888; margin-left: 6px; }
+      .filters { display: flex; gap: 8px; flex-wrap: wrap; }
+      .fgroup { display: flex; gap: 4px; }
+      button.f { background: #252525; border: 1px solid #333; color: #aaa; border-radius: 4px; padding: 3px 9px; cursor: pointer; font-size: 0.8rem; }
+      button.f.on { background: #e8621a; border-color: #e8621a; color: #fff; }
+      button.f:hover:not(.on) { border-color: #555; color: #e0e0e0; }
+
+      .wrap { flex: 1; overflow: auto; min-height: 0; }
+      table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+      thead { position: sticky; top: 0; z-index: 1; }
+      th { background: #1a1a1a; padding: 0; border-bottom: 1px solid #2e2e2e; }
+      th button { display: block; width: 100%; padding: 7px 10px; background: transparent; border: none; color: #888; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 700; cursor: pointer; white-space: nowrap; text-align: left; }
+      th button:hover { color: #e8621a; }
+      td { padding: 6px 10px; border-bottom: 1px solid #1e1e1e; white-space: nowrap; }
+      tr:hover td { background: #1e1e1e; }
+      .th-num { background: #1a1a1a; padding: 7px 8px; text-align: right; font-size: 0.72rem; color: #444; font-weight: 700; border-bottom: 1px solid #2e2e2e; width: 42px; min-width: 42px; }
+      .td-num { text-align: right; color: #3a3a3a; font-size: 0.78rem; user-select: none; padding-right: 8px; }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/dataViewer.ts"></script>
+  </body>
+</html>

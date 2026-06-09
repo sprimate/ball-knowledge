@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ball Knowledge — Matchup Sim</title>
+    <style>
+      *, *::before, *::after { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: #111;
+        color: #e0e0e0;
+        font-family: system-ui, sans-serif;
+        font-size: 14px;
+        min-height: 100dvh;
+        display: flex;
+        flex-direction: column;
+      }
+      #app { display: contents; }
+
+      /* ── Loading ── */
+      .loading { padding: 2rem; color: #888; }
+
+      /* ── Header ── */
+      header {
+        flex-shrink: 0;
+        padding: 10px 16px;
+        background: #1a1a1a;
+        border-bottom: 1px solid #2e2e2e;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+      header a { color: #e8621a; text-decoration: none; font-weight: 600; }
+      header a:hover { text-decoration: underline; }
+      h1 { margin: 0; font-size: 1rem; font-weight: 700; }
+      .subtitle { font-weight: 400; color: #888; font-size: 0.85rem; }
+      .btn-sim {
+        margin-left: auto;
+        background: #e8621a;
+        border: none;
+        color: #fff;
+        font-weight: 700;
+        font-size: 0.88rem;
+        padding: 6px 16px;
+        border-radius: 5px;
+        cursor: pointer;
+        letter-spacing: 0.03em;
+        transition: background 0.15s;
+      }
+      .btn-sim:hover { background: #ff7a30; }
+      .btn-sim:active { background: #c4521a; }
+
+      /* ── Scoreboard ── */
+      .scoreboard {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 24px;
+        padding: 20px 16px 12px;
+        background: #161616;
+        border-bottom: 1px solid #2e2e2e;
+      }
+      .score-block {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+        min-width: 120px;
+      }
+      .score-block.winner .score { color: #e8621a; }
+      .team-label {
+        font-size: 0.78rem;
+        color: #999;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        text-align: center;
+        max-width: 180px;
+        line-height: 1.3;
+      }
+      .score {
+        font-size: 3rem;
+        font-weight: 800;
+        line-height: 1;
+        color: #e0e0e0;
+      }
+      .score-sep {
+        font-size: 1rem;
+        color: #555;
+        font-weight: 300;
+      }
+
+      /* ── Panels ── */
+      .panels {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0;
+        flex: 1;
+        min-height: 0;
+      }
+      @media (max-width: 860px) {
+        .panels { grid-template-columns: 1fr; }
+      }
+      .panel {
+        padding: 12px 0;
+        border-right: 1px solid #2a2a2a;
+        overflow: hidden;
+      }
+      .panel:last-child { border-right: none; }
+      .panel-title {
+        padding: 0 12px 8px;
+        font-size: 0.78rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: #e8621a;
+      }
+
+      /* ── Box score table ── */
+      .wrap { overflow-x: auto; }
+      table { width: 100%; border-collapse: collapse; font-size: 0.82rem; white-space: nowrap; }
+      thead tr { background: #1a1a1a; }
+      th {
+        padding: 5px 8px;
+        text-align: right;
+        font-size: 0.72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #666;
+        border-bottom: 1px solid #2e2e2e;
+      }
+      th:first-child { text-align: left; min-width: 160px; }
+      td {
+        padding: 5px 8px;
+        border-bottom: 1px solid #1e1e1e;
+        text-align: right;
+        color: #ccc;
+      }
+      td:first-child { text-align: left; }
+      tr:hover td { background: #1e1e1e; }
+
+      td.pts { font-weight: 700; color: #e0e0e0; }
+      td.dim, td span.dim { color: #666; font-size: 0.78rem; }
+      td.tov { color: #d06060; }
+      td.name { color: #e0e0e0; }
+      .team-tag {
+        display: inline-block;
+        margin-left: 5px;
+        font-size: 0.68rem;
+        color: #555;
+        background: #222;
+        padding: 1px 4px;
+        border-radius: 3px;
+        vertical-align: middle;
+      }
+
+      /* ── Totals row ── */
+      tr.totals td {
+        background: #1a1a1a;
+        border-top: 1px solid #333;
+        font-weight: 700;
+        color: #e0e0e0;
+      }
+      tr.totals td.pts { color: #e8621a; font-size: 1rem; }
+      tr.totals td.dim { color: #888; font-size: 0.78rem; font-weight: 400; }
+      tr.totals td.tov { color: #d06060; }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/matchupViewer.ts"></script>
+  </body>
+</html>
