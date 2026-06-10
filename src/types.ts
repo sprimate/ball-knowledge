@@ -15,6 +15,7 @@ export type Stats = {
   stl: number;
   blk: number;
   tov: number;
+  pf: number;
 };
 
 export type Player = {
@@ -108,6 +109,7 @@ export type SeasonRecord = {
   totalTeams: number;
   outcome: "promoted" | "demoted" | "stayed" | "champion";
   roster: Roster;
+  agedUpSlots: Position[];
 };
 
 /** Accumulated box score totals for one player across an entire simulated season. */

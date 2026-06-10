@@ -292,6 +292,16 @@ export function isNBADataLoaded(): boolean {
 }
 
 /**
+ * Returns the original wins/losses for a team key (e.g. "1997 Chicago Bulls"),
+ * or null if the team isn't found in the loaded data.
+ */
+export function getRealTeamRecord(teamKey: string): { wins: number; losses: number } | null {
+  if (!_teams) return null;
+  const team = _teams.find((t) => t.key === teamKey);
+  return team ? { wins: team.wins, losses: team.losses } : null;
+}
+
+/**
  * Returns the min and max win% for each tier, keyed by tier index 0–4.
  * Returns an empty map if data hasn't loaded yet.
  */
@@ -434,6 +444,7 @@ function buildRealTeam(key: string, raw: NBATeamRaw): RealTeam {
         stl:     r(p.stl    / gp),
         blk:     r(p.blk    / gp),
         tov:     r(p.tov    / gp),
+        pf:      r(p.pf     / gp),
       };
 
       const primaryPos = (p.positions[0] ?? "SF") as Position;
@@ -499,7 +510,7 @@ function buildRealTeam(key: string, raw: NBATeamRaw): RealTeam {
 
   return {
     key,
-    displayName: key,
+    displayName: (() => { const yr = raw.year; const end = String(yr).slice(2); const start = String(yr - 1).slice(2); return `${start}-${end} ${franchiseOf(key)}`; })(),
     year: raw.year,
     season: raw.season,
     wins: raw.wins,
