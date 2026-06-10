@@ -6,11 +6,11 @@ import { isNBADataLoaded, buildRealTierPool, pickRealCpuTeams } from "./nbaLoade
 export const POSITIONS: Position[] = ["PG", "SG", "SF", "PF", "C"];
 
 export const LEAGUES: League[] = [
-  { name: "JV", teams: 12, budget: 9 },
-  { name: "Varsity", teams: 16, budget: 11 },
-  { name: "College", teams: 20, budget: 13 },
-  { name: "G League", teams: 24, budget: 15 },
-  { name: "NBA", teams: 30, budget: 17 }
+  { name: "G-League", teams: 12, budget: 9 },
+  { name: "NBA", teams: 16, budget: 11 },
+  { name: "All Star", teams: 20, budget: 13 },
+  { name: "Hall of Fame", teams: 24, budget: 15 },
+  { name: "GOAT", teams: 30, budget: 17 }
 ];
 
 const FIRST_NAMES = [

@@ -292,6 +292,20 @@ export function isNBADataLoaded(): boolean {
 }
 
 /**
+ * Returns the min and max win% for each tier, keyed by tier index 0–4.
+ * Returns an empty map if data hasn't loaded yet.
+ */
+export function getTierWinPctRanges(): Map<number, { min: number; max: number }> {
+  const result = new Map<number, { min: number; max: number }>();
+  if (!_teams) return result;
+  for (const [tier, teams] of teamsByTier) {
+    const pcts = teams.map((t) => t.winPct);
+    result.set(tier, { min: Math.min(...pcts), max: Math.max(...pcts) });
+  }
+  return result;
+}
+
+/**
  * Return every player from every team across all tiers, with a `_tier`
  * property attached for filtering. Used by the Data inspector view.
  */

@@ -1,6 +1,6 @@
 import "./styles.css";
 import { LEAGUES, POSITIONS, emptyRoster, generatePlayers, rosterCost, buildTierPool, pickCpuTeams } from "./data";
-import { loadNBAData, teamAbbr, isNBADataLoaded, getAllDataPlayers, RealPlayer, getNextSeasonPlayer } from "./nbaLoader";
+import { loadNBAData, teamAbbr, isNBADataLoaded, getAllDataPlayers, RealPlayer, getNextSeasonPlayer, getTierWinPctRanges } from "./nbaLoader";
 import { Rng } from "./rng";
 import { simulateSeason, simulateSeasonPossession } from "./sim";
 import { DraftMode, DraftPick, Player, PlayerSeasonLine, Position, Roster, SeasonBoxStats, SeasonRecord, SortKey, Standing, Team } from "./types";
@@ -44,6 +44,12 @@ type GameState = {
   showOvr: boolean;
   maxHandicap: number;
   championOverlayDismissed: boolean;
+  helpOpen: boolean;
+  helpPage: 1 | 2 | 3;
+  timerStartWall: number;
+  timerPausedMs: number;
+  timerPauseStartWall: number | null;
+  timerFinalMs: number | null;
 };
 
 const TEAM_NAMES = [
@@ -79,7 +85,7 @@ function newGame(seed: string): GameState {
     filter: "ALL",
     sortKey: "normalizedRating",
     sortDirection: "desc",
-    status: "Pick exactly 5 players and fit the JV budget.",
+    status: "Pick exactly 5 players and fit the G-League budget.",
     isSimulating: false,
     completed: false,
     viewMode: "draft",
@@ -100,12 +106,33 @@ function newGame(seed: string): GameState {
     showOvr: localStorage.getItem("showOvr") === "1",
     maxHandicap: 0,
     championOverlayDismissed: false,
+    helpOpen: localStorage.getItem("helpSeen") !== "1",
+    helpPage: 1 as 1 | 2 | 3,
+    timerStartWall: Date.now(),
+    timerPausedMs: 0,
+    timerPauseStartWall: localStorage.getItem("helpSeen") !== "1" ? Date.now() : null,
+    timerFinalMs: null,
   };
 }
 
 function seedFromUrl(): string {
   const params = new URLSearchParams(window.location.search);
   return params.get("seed") || Math.random().toString(36).slice(2, 10).toUpperCase();
+}
+
+const TIMER_MAX_MS = 999 * 60000 + 59000;
+
+function getTimerMs(): number {
+  const pauseActive = state.timerPauseStartWall != null ? Date.now() - state.timerPauseStartWall : 0;
+  const elapsed = Date.now() - state.timerStartWall - state.timerPausedMs - pauseActive;
+  return Math.min(Math.max(elapsed, 0), TIMER_MAX_MS);
+}
+
+function formatTimer(ms: number): string {
+  const totalSec = Math.floor(ms / 1000);
+  const m = Math.min(Math.floor(totalSec / 60), 999);
+  const s = totalSec % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
 function render(): void {
@@ -118,16 +145,18 @@ function render(): void {
       <section class="topbar">
         <div>
           <h1>Ball Knowledge</h1>
-          <p>${state.completed ? `NBA title won in ${state.seasonYear - 1} seasons.` : state.status}</p>
+          <p>${state.completed ? `GOAT status achieved in ${state.seasonYear - 1} seasons.` : state.status}</p>
         </div>
         <div class="meta">
+          <span id="timer-display" class="timer-display">${formatTimer(getTimerMs())}</span>
           <span>Seed <b>${state.seed}</b></span>
           <label class="multiplier-label">Handicap <input id="multiplier" type="number" value="${state.multiplier}" step="1" min="0" /></label>
           <label class="multiplier-label"><input id="show-ovr" type="checkbox" ${state.showOvr ? "checked" : ""} /> Show OVR</label>
         </div>
         <div class="actions">
-          <button id="restart-same">Restart Same</button>
-          <button id="restart-new">New Seed</button>
+          <a id="restart-same" class="btn" href="?seed=${state.seed}">Restart Same</a>
+          <a id="restart-new" class="btn" href="${location.pathname}">New Seed</a>
+          <button id="help-btn" class="help-btn" title="How to play">?</button>
         </div>
       </section>
 
@@ -219,6 +248,7 @@ function render(): void {
       </section>
       ${state.completed && !state.championOverlayDismissed ? renderChampionshipOverlay() : state.pendingResult ? renderSeasonResultOverlay(state.pendingResult) : ""}
       ${state.teamPopupId ? renderTeamPopup(state.teamPopupId) : ""}
+      ${state.helpOpen ? renderHelpPanel() : ""}
     </main>
   `;
   wireEvents();
@@ -612,7 +642,7 @@ function renderDataView(): string {
     return `<th><button class="sort-btn ${active ? "sort-active" : ""}" data-data-sort="${key}">${label}${arrow}</button></th>`;
   }
 
-  const TIER_NAMES = ["JV", "Varsity", "College", "G League", "NBA"];
+  const TIER_NAMES = ["G-League", "NBA", "All Star", "Hall of Fame", "GOAT"];
 
   return `
     <div class="panel draft-panel data-view-panel">
@@ -686,18 +716,149 @@ function renderDataView(): string {
   `;
 }
 
+function renderHelpPanel(): string {
+  const p = state.helpPage;
+  const page1 = `
+    <div class="help-page">
+      <h2>How to Play</h2>
+      <div class="help-section">
+        <h3>🏆 Goal</h3>
+        <p>Climb from the bottom league all the way up to the <strong>GOAT</strong> tier and win a championship there — in as few seasons as possible.</p>
+      </div>
+      <div class="help-section">
+        <h3>🏅 Leagues &amp; Promotion</h3>
+        <p>There are five leagues: <strong>G-League → NBA → All Star → Hall of Fame → GOAT</strong>. Each season you compete against <strong>real historical NBA teams</strong> drawn from the record books. Finish in the <strong>top 4</strong> to promote to the next league. Finish in the <strong>bottom 4</strong> and you'll be demoted. Win the championship in the GOAT league and the game is complete.</p>
+      </div>
+      <div class="help-section">
+        <h3>💰 Budget</h3>
+        <p>Each player has a <strong>cost</strong>. Your roster must fit within your <strong>Budget</strong>. The budget increases as you rise through leagues. Going over budget means you can't start the season — you'll need to swap players.</p>
+      </div>
+      <div class="help-section">
+        <h3>🧩 Free Agency (Picking Players)</h3>
+        <p>Before each season, browse the player pool and select a player, then slot them into one of your five roster positions (PG, SG, SF, PF, C). Once all five spots are filled within your budget, you can start the season.</p>
+      </div>
+      <div class="help-section">
+        <h3>📈 Season Results</h3>
+        <p>After each season you'll see your record, standing, and any <strong>Budget</strong> or <strong>Discount</strong> rewards earned. Promoting earns +2 budget and discounts. Staying earns +1 budget. Demotion earns nothing.</p>
+      </div>
+    </div>
+  `;
+  const page2 = `
+    <div class="help-page">
+      <h2>Specifics</h2>
+      <div class="help-section">
+        <h3>⬆️ Age Up</h3>
+        <p>Once per offseason, you can <strong>Age Up</strong> a player — advancing them to a later point in their real career. Their cost is locked to whatever it was when you first signed them, so you can end up with a player performing well above their price. The catch: you won't see their updated stats before committing, and there's no guarantee they improve. Careers peak and fade — age someone past their prime and they may come back worse. It's a permanent decision, so use it wisely if you don't know their history.</p>
+      </div>
+      <div class="help-section">
+        <h3>🏷️ Discounts</h3>
+        <p>Discounts let you reduce a player's cost by 1 when you sign them during free agency. You earn discounts by finishing <strong>1st or 2nd in any league</strong> at the end of a season. You can apply at most one discount per pick, and once applied the reduced cost is locked in permanently for that player.</p>
+      </div>
+      <div class="help-section">
+        <h3>🎯 Handicap</h3>
+        <p>The <strong>Handicap</strong> adds bonus points to your team's score after each simulated game — for win/loss purposes only. It doesn't affect your stats. Use it if you want an easier experience. Your highest handicap used is tracked and shown when you win.</p>
+      </div>
+      <div class="help-section">
+        <h3>👁️ Show OVR</h3>
+        <p>Toggling <strong>Show OVR</strong> displays each player's overall rating badge. Useful for quick comparisons without opening the detailed stats view.</p>
+      </div>
+      <div class="help-section">
+        <h3>🔁 Seed</h3>
+        <p>Every game run uses a <strong>seed</strong> — a code that determines which players appear and how opposing rosters are built. Use <strong>Restart Same</strong> to replay the exact same run, or <strong>New Seed</strong> for a fresh random game.</p>
+      </div>
+    </div>
+  `;
+  const page3 = `
+    <div class="help-page">
+      <h2>Under the Hood</h2>
+      <div class="help-section">
+        <h3>🎲 Simulation</h3>
+        <p>Each game is simulated possession-by-possession — <strong>75 possessions per side</strong> — in a full round-robin schedule across all teams in the league. Every possession resolves using each player's real statistical profile: shooting percentages, assist rate, turnover rate, rebounding, blocks, steals, and free throw rate all factor into the outcome.</p>
+      </div>
+      <div class="help-section">
+        <h3>⭐ OVR Rating</h3>
+        <p>Player ratings are derived from <strong>John Hollinger's Game Score formula</strong>, scaled to a <strong>55–99</strong> range across all player seasons in the database. This gives a single number that reflects a player's overall contribution relative to the full historical pool.</p>
+      </div>
+      <div class="help-section">
+        <h3>📅 Player Pool</h3>
+        <p>All players and opposing teams are drawn from <strong>NBA seasons from 1979 onward</strong> — the year the three-point line was introduced. This ensures every team in the database played under the same fundamental rules.</p>
+      </div>
+      <div class="help-section">
+        <h3>🗂️ League Assignment</h3>
+        <p>Teams are not randomly distributed across leagues. Every team-season in the database is ranked by historical win percentage and split into five tiers from worst to best. Each season, a random sample of teams is drawn from that tier's pool. The table below shows how many are sampled per league, the estimated pool size, and the win percentage range for each tier.</p>
+        ${(() => {
+          const ranges = getTierWinPctRanges();
+          const rows = LEAGUES.map((l, i) => {
+            const r = ranges.get(i);
+            const winRange = r ? `${(r.min * 100).toFixed(1)}% \u2013 ${(r.max * 100).toFixed(1)}%` : "\u2014";
+            return `<tr><td>${l.name}</td><td>${l.teams} of ~252</td><td>${winRange}</td></tr>`;
+          }).join("");
+          return `<table class="help-table">
+            <thead><tr><th>League</th><th>Sampled / Pool</th><th>Win %</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>`;
+        })()}
+      </div>
+    </div>
+  `;
+
+  return `
+    <div class="help-backdrop" id="help-backdrop">
+      <div class="help-panel">
+        <div class="help-header">
+          <span class="help-title">Ball Knowledge — Help</span>
+          <button class="help-close" id="help-close">✕</button>
+        </div>
+        <div class="help-body">
+          ${p === 1 ? page1 : p === 2 ? page2 : page3}
+        </div>
+        <div class="help-footer">
+          <button class="help-page-btn ${p === 1 ? "active" : ""}" id="help-page-1">1 · Basics</button>
+          <button class="help-page-btn ${p === 2 ? "active" : ""}" id="help-page-2">2 · Specifics</button>
+          <button class="help-page-btn ${p === 3 ? "active" : ""}" id="help-page-3">3 · Details</button>
+          <span class="help-footer-gap"></span>
+          <button class="help-done" id="help-done">Got it</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function wireEvents(): void {
-  document.querySelector("#restart-same")?.addEventListener("click", () => {
-    state = newGame(state.seed);
-    setSeedParam(state.seed);
+
+  // Help panel
+  document.querySelector("#help-btn")?.addEventListener("click", () => {
+    if (state.timerPauseStartWall == null) {
+      state.timerPauseStartWall = Date.now();
+    }
+    state.helpOpen = true;
+    state.helpPage = 1;
     render();
   });
-  document.querySelector("#restart-new")?.addEventListener("click", () => {
-    const seed = Math.random().toString(36).slice(2, 10).toUpperCase();
-    state = newGame(seed);
-    setSeedParam(seed);
+  const closeHelp = () => {
+    if (state.timerPauseStartWall != null) {
+      state.timerPausedMs += Date.now() - state.timerPauseStartWall;
+      state.timerPauseStartWall = null;
+    }
+    state.helpOpen = false;
+    localStorage.setItem("helpSeen", "1");
     render();
+  };
+  document.querySelector("#help-close")?.addEventListener("click", closeHelp);
+  document.querySelector("#help-done")?.addEventListener("click", closeHelp);
+  document.querySelector("#help-backdrop")?.addEventListener("click", (e) => {
+    if ((e.target as HTMLElement).id === "help-backdrop") closeHelp();
   });
+  document.querySelector("#help-page-1")?.addEventListener("click", () => {
+    state.helpPage = 1; render();
+  });
+  document.querySelector("#help-page-2")?.addEventListener("click", () => {
+    state.helpPage = 2; render();
+  });
+  document.querySelector("#help-page-3")?.addEventListener("click", () => {
+    state.helpPage = 3; render();
+  });
+
   document.querySelectorAll<HTMLButtonElement>("[data-filter]").forEach((button) => {
     button.addEventListener("click", () => {
       state.filter = button.dataset.filter as Position | "ALL";
@@ -848,17 +1009,7 @@ function wireEvents(): void {
     state.championOverlayDismissed = true;
     render();
   });
-  document.querySelector("#champ-restart-same")?.addEventListener("click", () => {
-    state = newGame(state.seed);
-    setSeedParam(state.seed);
-    render();
-  });
-  document.querySelector("#champ-restart-new")?.addEventListener("click", () => {
-    const seed = Math.random().toString(36).slice(2, 10).toUpperCase();
-    state = newGame(seed);
-    setSeedParam(seed);
-    render();
-  });
+
   document.querySelectorAll<HTMLButtonElement>("[data-team]").forEach((button) => {
     button.addEventListener("click", () => {
       const id = button.dataset.team!;
@@ -1079,7 +1230,8 @@ function finishSeason(): void {
 
   if (isChampion) {
     state.completed = true;
-    state.status = `Championship won in ${state.seasonYear} seasons.`;
+    state.status = `GOAT status achieved in ${state.seasonYear} seasons.`;
+    state.timerFinalMs = getTimerMs();
     return;
   }
 
@@ -1306,6 +1458,8 @@ function renderChampionshipOverlay(): string {  const totalWins = state.seasonHi
         <div class="champion-stats">
           <div class="champion-stat"><span>${totalWins}–${totalLosses}</span><label>All-Time Record</label></div>
           <div class="champion-stat"><span>${state.seasonHistory.length}</span><label>Seasons</label></div>
+          ${state.timerFinalMs != null ? `<div class="champion-stat"><span>${formatTimer(state.timerFinalMs)}</span><label>Time</label></div>` : ""}
+          ${state.timerFinalMs != null && state.timerPausedMs >= 1000 ? `<div class="champion-stat champ-stat-dim"><span>${formatTimer(state.timerPausedMs)}</span><label>Paused</label></div>` : ""}
           ${goldCount > 0 ? `<div class="champion-stat"><span>🥇 ×${goldCount}</span><label>Gold Seasons</label></div>` : ""}
           ${silverCount > 0 ? `<div class="champion-stat"><span>🥈 ×${silverCount}</span><label>Silver Seasons</label></div>` : ""}
           ${state.maxHandicap > 0 ? `<div class="champion-stat"><span>+${state.maxHandicap}</span><label>Max Handicap</label></div>` : ""}
@@ -1362,8 +1516,8 @@ function renderChampionshipOverlay(): string {  const totalWins = state.seasonHi
 
         <div class="champion-actions">
           <button id="champ-close">✕ View Standings</button>
-          <button id="champ-restart-same">↩ Restart Same Seed</button>
-          <button id="champ-restart-new">✦ New Seed</button>
+          <a id="champ-restart-same" class="btn" href="?seed=${state.seed}">↩ Restart Same Seed</a>
+          <a id="champ-restart-new" class="btn" href="${location.pathname}">✦ New Seed</a>
         </div>
       </div>
     </div>
@@ -1404,6 +1558,12 @@ function setSeedParam(seed: string): void {
 
   // Re-build initial draft pool now that real data is available
   state.draftPool = buildTierPool(state.leagueIndex, state.rng.fork(`fa-${state.leagueIndex}-${state.seasonYear}`), 999);
+
+  // Tick timer every second using wall-clock math so tab-switch pauses don't skew it
+  setInterval(() => {
+    const el = document.querySelector<HTMLElement>("#timer-display");
+    if (el) el.textContent = formatTimer(getTimerMs());
+  }, 1000);
 
   render();
 })();
