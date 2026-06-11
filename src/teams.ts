@@ -36,6 +36,7 @@ function makeStats(positions: Position[], talent: number, tier: number): Stats {
     stl:  r(0.3 + t * 2.1),
     blk:  r(big   ? 0.4 + t * 3.2 : 0.1 + t * 1.1),
     tov:  r(0.8 + t * 3.8),
+    pf:   r(1.0 + t * 3.5),
   };
 }
 

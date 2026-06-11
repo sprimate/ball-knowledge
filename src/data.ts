@@ -153,6 +153,7 @@ function generateStats(rng: Rng, positions: Position[]): Stats {
     reb: round(rng.float(big ? 5 : 2, big ? 14 : 8) * talent),
     ast: round(rng.float(guard ? 3 : 1, guard ? 11 : 6) * talent),
     stl: round(rng.float(0.3, 2.2) * talent),
+    pf: round(rng.float(1.0, 4.5) * talent),
     blk: round(rng.float(big ? 0.6 : 0.1, big ? 3.1 : 1.3) * talent),
     tov: round(rng.float(0.8, 4.6) * talent)
   };
