@@ -1,0 +1,469 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ball Knowledge — Bracket Simulator</title>
+    <style>
+      *, *::before, *::after { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        background: #111;
+        color: #e0e0e0;
+        font-family: system-ui, sans-serif;
+        font-size: 14px;
+        min-height: 100dvh;
+        display: flex;
+        flex-direction: column;
+      }
+      #app { display: contents; }
+
+      /* ── Loading ── */
+      .loading { padding: 2rem; color: #888; }
+
+      /* ── Header ── */
+      header {
+        flex-shrink: 0;
+        padding: 10px 16px;
+        background: #1a1a1a;
+        border-bottom: 1px solid #2e2e2e;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        flex-wrap: wrap;
+      }
+      header a { color: #e8621a; text-decoration: none; font-weight: 600; }
+      header a:hover { text-decoration: underline; }
+      h1 { margin: 0; font-size: 1rem; font-weight: 700; }
+      .btn-sim {
+        margin-left: auto;
+        background: #e8621a;
+        border: none;
+        color: #fff;
+        font-weight: 700;
+        font-size: 0.88rem;
+        padding: 7px 18px;
+        border-radius: 5px;
+        cursor: pointer;
+        letter-spacing: 0.03em;
+        transition: background 0.15s;
+      }
+      .btn-sim:hover:not(:disabled) { background: #ff7a30; }
+      .btn-sim:active:not(:disabled) { background: #c4521a; }
+      .btn-sim:disabled { background: #3a3a3a; color: #666; cursor: not-allowed; }
+
+      /* ── Toolbar ── */
+      .toolbar {
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        padding: 10px 16px;
+        background: #161616;
+        border-bottom: 1px solid #2a2a2a;
+        flex-wrap: wrap;
+      }
+      .toolbar-section {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .tlabel {
+        font-size: 0.74rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        color: #666;
+        white-space: nowrap;
+      }
+
+      /* Number-of-teams buttons */
+      .btn-group { display: flex; gap: 0; }
+      .btn-n {
+        background: #252525;
+        border: 1px solid #333;
+        color: #aaa;
+        padding: 4px 11px;
+        font-size: 0.85rem;
+        cursor: pointer;
+        margin-right: -1px;
+        transition: background 0.1s, color 0.1s;
+      }
+      .btn-n:first-child { border-radius: 4px 0 0 4px; }
+      .btn-n:last-child  { border-radius: 0 4px 4px 0; margin-right: 0; }
+      .btn-n.on { background: #e8621a; border-color: #e8621a; color: #fff; z-index: 1; }
+      .btn-n:hover:not(.on) { background: #333; color: #e0e0e0; }
+
+      /* Series length selects */
+      .series-section { flex-wrap: wrap; }
+      .series-inputs { display: flex; gap: 8px; flex-wrap: wrap; }
+      .series-group  { display: flex; align-items: center; gap: 4px; }
+      .series-label  { font-size: 0.78rem; color: #888; white-space: nowrap; }
+      .gpr-sel {
+        background: #222;
+        border: 1px solid #333;
+        color: #ccc;
+        padding: 3px 6px;
+        border-radius: 4px;
+        font-size: 0.82rem;
+        cursor: pointer;
+      }
+      .gpr-sel:focus { outline: none; border-color: #e8621a; }
+
+      /* Tier checkboxes */
+      .fill-section { flex-wrap: wrap; gap: 8px; }
+      .tier-filters { display: flex; gap: 6px; flex-wrap: wrap; }
+      .tier-cb {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 0.8rem;
+        color: #aaa;
+        cursor: pointer;
+        user-select: none;
+      }
+      .tier-cb input { accent-color: #e8621a; cursor: pointer; }
+      .btn-fill {
+        background: #252525;
+        border: 1px solid #444;
+        color: #ccc;
+        padding: 4px 12px;
+        border-radius: 4px;
+        font-size: 0.82rem;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: background 0.1s;
+      }
+      .btn-fill:hover { background: #333; color: #fff; }
+
+      /* ── Bracket scroll area ── */
+      .bracket-scroll {
+        flex: 1;
+        overflow: auto;
+        padding: 20px 16px;
+        min-height: 0;
+      }
+      .bracket-area { position: relative; }
+      .bracket-svg  { display: block; }
+
+      /* ── Bracket slots ── */
+      .bslot {
+        position: absolute;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        overflow: hidden;
+      }
+
+      /* Seed slots (clickable) */
+      .seed-slot {
+        background: #1c1c1c;
+        border: 1px solid #303030;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: border-color 0.15s, background 0.15s;
+        padding: 0 8px;
+      }
+      .seed-slot:hover { border-color: #555; background: #222; }
+      .seed-slot.assigned { border-color: #3a3a3a; }
+      .seed-slot.assigned .slot-label { color: #e0e0e0; }
+      .seed-slot.active {
+        border-color: #e8621a;
+        background: #1f1510;
+        box-shadow: 0 0 0 2px rgba(232,98,26,0.25);
+      }
+
+      .seed-num {
+        font-size: 0.68rem;
+        font-weight: 700;
+        color: #555;
+        min-width: 20px;
+        text-align: right;
+        flex-shrink: 0;
+      }
+      .slot-label {
+        font-size: 0.8rem;
+        color: #666;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        flex: 1;
+      }
+      .seed-slot.assigned .slot-label { color: #ccc; }
+
+      /* Result slots */
+      .result-slot {
+        background: #181818;
+        border: 1px solid #2a2a2a;
+        border-radius: 4px;
+        padding: 0 8px;
+        flex-direction: column;
+        align-items: flex-start;
+        justify-content: center;
+        gap: 0;
+      }
+      .result-slot .slot-label {
+        font-size: 0.76rem;
+        line-height: 1.2;
+      }
+      .result-slot .vs-label { color: #555; font-size: 0.72rem; }
+      .result-slot .vs-label em { font-style: normal; color: #444; }
+      .result-slot .tbd { color: #3a3a3a; }
+      .result-slot.has-result { border-color: #333; }
+      .result-slot .winner-label { color: #ddd; font-weight: 600; font-size: 0.8rem; }
+      .series-score {
+        font-size: 0.68rem;
+        color: #e8621a;
+        font-weight: 700;
+        margin-top: 1px;
+      }
+
+      /* Champion slot */
+      .champ-slot {
+        background: linear-gradient(135deg, #1a1400 0%, #221800 100%);
+        border: 1px solid #4a3800;
+        border-radius: 6px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        padding: 8px;
+      }
+      .champ-slot.has-winner { border-color: #c8900a; }
+      .champ-crown { font-size: 1.4rem; line-height: 1; }
+      .champ-label {
+        font-size: 0.82rem;
+        font-weight: 700;
+        color: #c8900a;
+        text-align: center;
+        line-height: 1.2;
+      }
+      .champ-label.tbd { color: #4a3800; }
+
+      /* ── Team picker panel ── */
+      .picker-panel {
+        flex-shrink: 0;
+        padding: 12px 16px;
+        background: #161616;
+        border-top: 1px solid #2e2e2e;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .picker-title {
+        font-size: 0.78rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: #e8621a;
+        white-space: nowrap;
+      }
+      .picker-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+      .picker-sel {
+        background: #1e1e1e;
+        border: 1px solid #383838;
+        color: #ccc;
+        padding: 5px 8px;
+        border-radius: 4px;
+        font-size: 0.85rem;
+        min-width: 160px;
+        cursor: pointer;
+      }
+      .picker-sel:focus { outline: none; border-color: #e8621a; }
+      .year-sel { min-width: 80px; }
+
+      .btn-assign {
+        background: #e8621a;
+        border: none;
+        color: #fff;
+        font-weight: 700;
+        padding: 5px 14px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.85rem;
+      }
+      .btn-assign:hover { background: #ff7a30; }
+      .btn-clear {
+        background: transparent;
+        border: 1px solid #444;
+        color: #888;
+        padding: 5px 10px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.85rem;
+      }
+      .btn-clear:hover { border-color: #d06060; color: #d06060; }
+      .btn-cancel {
+        background: transparent;
+        border: 1px solid #333;
+        color: #666;
+        padding: 5px 10px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.9rem;
+        line-height: 1;
+      }
+      .btn-cancel:hover { border-color: #555; color: #aaa; }
+
+      /* ── Results panel ── */
+      .results-panel {
+        flex-shrink: 0;
+        border-top: 1px solid #2a2a2a;
+        background: #141414;
+        padding: 12px 16px;
+        max-height: 260px;
+        overflow-y: auto;
+      }
+      .res-inner { display: flex; flex-direction: column; gap: 2px; max-width: 680px; }
+      .res-round-label {
+        margin-top: 10px;
+        font-size: 0.72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: #e8621a;
+        padding-bottom: 4px;
+        border-bottom: 1px solid #2a2a2a;
+      }
+      .res-round-label:first-child { margin-top: 0; }
+      .res-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 4px 0;
+        font-size: 0.82rem;
+      }
+      .res-winner { color: #e0e0e0; font-weight: 600; flex: 1; min-width: 0; }
+      .res-score  { color: #e8621a; font-weight: 700; font-size: 0.85rem; white-space: nowrap; }
+      .res-loser  { color: #555; flex: 1; min-width: 0; text-align: right; }
+      .res-champion {
+        margin-top: 12px;
+        padding: 8px 12px;
+        background: #1a1400;
+        border: 1px solid #4a3800;
+        border-radius: 6px;
+        color: #c8900a;
+        font-weight: 700;
+        font-size: 0.9rem;
+      }
+      /* ── Clickable result slots ── */
+      .clickable-result { cursor: pointer; }
+      .clickable-result:hover { border-color: #4a4a4a !important; background: #1e1e1e; }
+
+      /* ── Series stats modal ── */
+      .series-modal-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.72);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 100;
+      }
+      .series-modal {
+        background: #181818;
+        border: 1px solid #333;
+        border-radius: 8px;
+        width: 480px;
+        max-width: calc(100vw - 32px);
+        max-height: calc(100dvh - 40px);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      .sm-header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 14px 16px 8px;
+        border-bottom: 1px solid #2a2a2a;
+        position: relative;
+      }
+      .sm-team {
+        flex: 1;
+        font-size: 0.82rem;
+        font-weight: 600;
+        color: #888;
+        line-height: 1.3;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+      .sm-team:last-of-type { text-align: right; align-items: flex-end; }
+      .sm-team.sm-winner { color: #e0e0e0; }
+      .sm-wins {
+        font-size: 1.6rem;
+        font-weight: 800;
+        line-height: 1;
+        color: #555;
+      }
+      .sm-team.sm-winner .sm-wins { color: #e8621a; }
+      .sm-vs {
+        font-size: 0.72rem;
+        color: #444;
+        text-align: center;
+        line-height: 1.5;
+        flex-shrink: 0;
+      }
+      .sm-games { font-size: 0.68rem; color: #3a3a3a; }
+      .sm-close {
+        position: absolute;
+        top: 10px;
+        right: 12px;
+        background: transparent;
+        border: none;
+        color: #555;
+        font-size: 1rem;
+        cursor: pointer;
+        line-height: 1;
+        padding: 2px 4px;
+      }
+      .sm-close:hover { color: #aaa; }
+      .sm-series-score {
+        padding: 6px 16px 2px;
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: #c8900a;
+      }
+      .sm-sub {
+        padding: 0 16px 8px;
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        color: #444;
+      }
+      .sm-table-wrap { overflow-y: auto; flex: 1; padding: 0 0 12px; }
+      .sm-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.82rem;
+      }
+      .sm-table thead th {
+        padding: 4px 12px;
+        font-size: 0.72rem;
+        font-weight: 700;
+        color: #555;
+        text-align: center;
+        border-bottom: 1px solid #2a2a2a;
+        background: #161616;
+      }
+      .sm-table thead th:first-child { text-align: left; }
+      .sm-table thead th:last-child  { text-align: right; }
+      .sm-table tbody tr:hover td { background: #1e1e1e; }
+      .sm-table td { padding: 4px 12px; border-bottom: 1px solid #1a1a1a; }
+      .sm-lbl { text-align: center; color: #555; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+      .sm-v   { text-align: center; color: #bbb; font-variant-numeric: tabular-nums; }
+      .sm-table thead th:first-child { text-align: center; }
+      .sm-table tr.sm-pts td.sm-v { color: #e0e0e0; font-weight: 700; font-size: 0.9rem; }
+      .sm-table tr.sm-pts td.sm-lbl { color: #e8621a; }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/bracketSimulator.ts"></script>
+  </body>
+</html>

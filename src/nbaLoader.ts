@@ -752,3 +752,23 @@ function pickStartingFive(team: RealTeam): RealPlayer[] {
 
   return starters;
 }
+
+// ---------------------------------------------------------------------------
+// Bracket simulator API
+// ---------------------------------------------------------------------------
+
+/** Returns all loaded teams (empty array if data not yet loaded). */
+export function getAllRealTeams(): RealTeam[] {
+  return _teams ? [..._teams] : [];
+}
+
+/**
+ * Returns the starting-five lineup for the given team key (e.g. "1997 Chicago Bulls").
+ * Uses the MPG-based starter selection (same as teamScore calculation).
+ * Returns an empty array if the team is not found or data isn't loaded.
+ */
+export function getTeamLineup(teamKey: string): RealPlayer[] {
+  if (!_teams) return [];
+  const team = _teams.find((t) => t.key === teamKey);
+  return team ? pickStartingFive(team) : [];
+}

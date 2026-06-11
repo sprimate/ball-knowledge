@@ -9,6 +9,7 @@ export default defineConfig({
         main: resolve(__dirname, "index.html"),
         matchup: resolve(__dirname, "matchup.html"),
         data: resolve(__dirname, "data.html"),
+        bracket: resolve(__dirname, "bracket.html"),
       },
     },
   },
