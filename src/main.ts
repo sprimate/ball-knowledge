@@ -780,7 +780,7 @@ function renderHelpPanel(): string {
       </div>
       <div class="help-section">
         <h3>🏅 Leagues &amp; Promotion</h3>
-        <p>There are five leagues: <strong>G-League → NBA → All Star → Hall of Fame → GOAT</strong>. Each season you compete against <strong>real historical NBA teams</strong> drawn from the record books. Finish in the <strong>top 4</strong> to promote to the next league. Finish in the <strong>bottom 4</strong> and you'll be demoted. Win the championship in the GOAT league and the game is complete.</p>
+        <p>There are five leagues: <strong>G-League → NBA → All Star → Hall of Fame → GOAT</strong>. Each season you compete against <strong>real historical NBA teams</strong> drawn from the record books. Finish in the <strong>top 4</strong> to promote to the next league. Finish in the <strong>bottom 4</strong> and you'll be demoted. In the GOAT league there is no promotion — win the championship to complete the game.</p>
       </div>
       <div class="help-section">
         <h3>💰 Budget</h3>
@@ -1264,9 +1264,10 @@ function finishSeason(): void {
   const userStanding = state.standings.find((s) => s.teamId === "user");
 
   const isChampion = state.leagueIndex === LEAGUES.length - 1 && rank === 1;
+  const isGoatTier = state.leagueIndex === LEAGUES.length - 1;
   const outcome: SeasonRecord["outcome"] = isChampion
     ? "champion"
-    : rank <= 4
+    : rank <= 4 && !isGoatTier
     ? "promoted"
     : rank > totalTeams - 4 && state.leagueIndex > 0
     ? "demoted"
@@ -1526,7 +1527,7 @@ function renderChampionshipOverlay(): string {  const totalWins = state.seasonHi
           ${goldCount > 0 ? `<div class="champion-stat"><span>🥇 ×${goldCount}</span><label>Gold Seasons</label></div>` : ""}
           ${silverCount > 0 ? `<div class="champion-stat"><span>🥈 ×${silverCount}</span><label>Silver Seasons</label></div>` : ""}
           ${state.maxHandicap > 0 ? `<div class="champion-stat"><span>+${state.maxHandicap}</span><label>Max Handicap</label></div>` : ""}
-          <div class="champion-stat"><span>${state.lowestDifficulty.charAt(0).toUpperCase() + state.lowestDifficulty.slice(1)}</span><label>${state.difficultyEverChanged ? "Lowest Difficulty" : "Difficulty"}</label></div>
+          <div class="champion-stat"><span>${state.lowestDifficulty.charAt(0).toUpperCase() + state.lowestDifficulty.slice(1)}</span><label>Difficulty</label></div>
         </div>
 
         <div class="champion-timeline-wrap">

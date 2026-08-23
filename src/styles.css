@@ -16,7 +16,6 @@ html {
 
 body {
   margin: 0;
-  min-width: 320px;
   height: 100%;
   overflow: hidden;
 }
@@ -677,16 +676,6 @@ select {
   text-align: center;
 }
 
-@media (max-width: 1120px) {
-  .topbar {
-    grid-template-columns: 1fr;
-  }
-
-  .actions,
-  .filters {
-    justify-content: flex-start;
-  }
-}
 
 .panel-controls {
   display: flex;
@@ -711,20 +700,6 @@ select {
   text-align: right;
 }
 
-@media (max-width: 1120px) {
-  .panel-controls {
-    justify-content: flex-start;
-  }
-
-  .slots.single-row {
-    grid-template-columns: 1fr;
-  }
-
-  .rules.compact {
-    max-width: none;
-    text-align: left;
-  }
-}
 
 /* ── Overlays ─────────────────────────────────────────────────────────────── */
 
@@ -1111,21 +1086,6 @@ a#champ-restart-new:hover {
   background: #d4541a;
 }
 
-@media (max-width: 600px) {
-  .champion-roster {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .timeline-row {
-    grid-template-columns: 2rem 4.5rem 3rem 4rem 1fr;
-    font-size: 0.78rem;
-  }
-
-  .result-card {
-    padding: 1.8rem 1.5rem;
-    min-width: unset;
-  }
-}
 
 /* ── Draft view toggle (Simple / Advanced) ──────────────────────────────── */
 
