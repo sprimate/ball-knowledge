@@ -39,7 +39,7 @@ function renderPage(): void {
 
   app.innerHTML = `
     <header>
-      <a href="/">← Home</a>
+      <a href="./">← Home</a>
       <h1>Matchup Sim <span class="subtitle">— possession-by-possession validation</span></h1>
       <button id="simBtn" class="btn-sim">▶ Simulate Again</button>
     </header>

@@ -122,7 +122,7 @@ function render(): void {
 
   document.querySelector<HTMLDivElement>("#app")!.innerHTML = `
     <header>
-      <a href="/">← Game</a>
+      <a href="./">← Game</a>
       <h1>Player Data <span class="count">${rows.length.toLocaleString()} players</span></h1>
       <div class="filters">
         <div class="fgroup">${posBtns}</div>
