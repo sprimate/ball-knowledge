@@ -197,9 +197,9 @@ function render(): void {
           <span>Seed <b>${state.seed}</b></span>
           <label class="multiplier-label">Handicap <input id="multiplier" type="number" value="${state.multiplier}" step="1" min="0" /></label>
           <div class="difficulty-toggle">
-            <button class="diff-btn ${state.difficulty === "casual" ? "diff-active" : ""}" data-diff="casual">Casual</button>
-            <button class="diff-btn ${state.difficulty === "competitive" ? "diff-active" : ""}" data-diff="competitive">Competitive</button>
-            <button class="diff-btn ${state.difficulty === "elite" ? "diff-active" : ""}" data-diff="elite">Elite</button>
+            <button class="diff-btn ${state.difficulty === "casual" ? "diff-active" : ""}" data-diff="casual" title="Stats and OVR shown.">Casual</button>
+            <button class="diff-btn ${state.difficulty === "competitive" ? "diff-active" : ""}" data-diff="competitive" title="Stats shown. OVR hidden.">Competitive</button>
+            <button class="diff-btn ${state.difficulty === "elite" ? "diff-active" : ""}" data-diff="elite" title="Stats and OVR hidden.">Elite</button>
           </div>
         </div>
         <div class="actions">
