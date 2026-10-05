@@ -11,6 +11,9 @@ Static Vite + TypeScript site (NBA draft/matchup/bracket simulator). Game UI is 
   build with `--base=/` and serve `dist/` statically (e.g. `python3 -m http.server`).
 
 ## Deploy
+- The Ball Knowledge tile on https://apps.sprimate.com is discovered from `homepage.*` Docker labels in
+  `~/ball-knowledge/compose.yaml`, not from the game's HTML metadata. Its description is `homepage.description`.
+  After changing labels, apply them with `docker compose -f ~/ball-knowledge/compose.yaml up -d --no-build`.
 - Live at https://ball-knowledge.sprimate.com: the `ball-knowledge` container (127.0.0.1:3070), stack in
   `~/ball-knowledge/` (compose.yaml + Dockerfile + nginx.conf). It builds from this folder's working tree.
 - **Editing source does not change the live site.** Rebuild: `cd ~/ball-knowledge && docker compose up -d --build`.
