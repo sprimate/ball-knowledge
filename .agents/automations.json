@@ -1,7 +1,0 @@
-{
-  "Review": {
-    "pre": [
-      {"name": "Release (build, record, deploy)", "run": "ci-release", "timeout": 1800}
-    ]
-  }
-}
