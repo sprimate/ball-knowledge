@@ -18,3 +18,9 @@ Static Vite + TypeScript site (NBA draft/matchup/bracket simulator). Game UI is 
   `~/ball-knowledge/` (compose.yaml + Dockerfile + nginx.conf). It builds from this folder's working tree.
 - **Editing source does not change the live site.** Rebuild: `cd ~/ball-knowledge && docker compose up -d --build`.
   That ships everything in the working tree, including uncommitted changes from other tickets.
+
+## Release (central pipeline)
+Built and deployed by the Conductor repo's pipeline from `.conductor/project.json`: one web target
+(`deploy/ball-knowledge/Dockerfile`, nginx config and compose file in `deploy/ball-knowledge/`, stack
+`~/ball-knowledge`, port 3070, ball-knowledge.sprimate.com). Review runs `ci-release`; `stage` (as the agent user)
+puts a commit on staging-ball-knowledge.sprimate.com. The GitHub Pages workflow still works independently.

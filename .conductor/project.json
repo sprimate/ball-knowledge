@@ -1,0 +1,16 @@
+{
+  "project": "ball-knowledge",
+  "targets": {
+    "web": {
+      "type": "web",
+      "image": {"name": "ball-knowledge-web", "var": "BALL_KNOWLEDGE_IMAGE", "dockerfile": "deploy/ball-knowledge/Dockerfile", "context": "."},
+      "compose": "deploy/ball-knowledge/compose.yaml",
+      "stack": "ball-knowledge",
+      "vars": {"BALL_KNOWLEDGE_VERSION": "{version}"},
+      "port": 3070,
+      "health": "/",
+      "host": "ball-knowledge.sprimate.com",
+      "container": "ball-knowledge"
+    }
+  }
+}
