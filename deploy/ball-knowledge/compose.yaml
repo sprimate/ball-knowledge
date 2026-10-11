@@ -1,0 +1,15 @@
+# ball-knowledge.sprimate.com. Installed as ~/ball-knowledge/compose.yaml by conductor-deploy (Conductor pipeline/),
+# which pins the image digest in ~/ball-knowledge/.env. cloudflared: ball-knowledge.sprimate.com -> localhost:3070.
+services:
+  ball-knowledge:
+    image: ${BALL_KNOWLEDGE_IMAGE:?set by conductor-deploy in ~/ball-knowledge/.env}
+    container_name: ball-knowledge
+    restart: unless-stopped
+    ports: ["127.0.0.1:3070:80"]
+    labels:
+      ball-knowledge.version: ${BALL_KNOWLEDGE_VERSION:-unknown}
+      homepage.group: Custom Apps
+      homepage.name: Ball Knowledge
+      homepage.href: https://ball-knowledge.sprimate.com
+      homepage.icon: mdi-basketball
+      homepage.description: NBA Roguelike
