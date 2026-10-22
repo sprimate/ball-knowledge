@@ -24,3 +24,8 @@ Built and deployed by the Conductor repo's pipeline from `.conductor/project.jso
 (`deploy/ball-knowledge/Dockerfile`, nginx config and compose file in `deploy/ball-knowledge/`, stack
 `~/ball-knowledge`, port 3070, ball-knowledge.sprimate.com). Review runs `ci-release`; `stage` (as the agent user)
 puts a commit on staging-ball-knowledge.sprimate.com. The GitHub Pages workflow still works independently.
+
+## ML data (`ml/`)
+- `ml/` holds the raw data for the play-type win-probability network (`ml/README.md`); it isn't part of the site build.
+- Docker here is rootless: run containers that write into the repo with `-u 0` (root in the container is `agent` on
+  the host). `-u 1000:1000` maps to a subordinate uid and can't write to the worktree.
