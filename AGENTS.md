@@ -26,6 +26,8 @@ Built and deployed by the Conductor repo's pipeline from `.conductor/project.jso
 puts a commit on staging-ball-knowledge.sprimate.com. The GitHub Pages workflow still works independently.
 
 ## ML data (`ml/`)
-- `ml/` holds the raw data for the play-type win-probability network (`ml/README.md`); it isn't part of the site build.
+- `ml/` is the play-type win-probability network (data, dataset builder, training grid, report, `predict.py`); how to
+  run each step is in `ml/README.md`, results in `ml/reports/REPORT.md` and on Docs. It isn't part of the site build.
+  `ml/cache/` (dataset, trained models) is gitignored and rebuilt by the scripts.
 - Docker here is rootless: run containers that write into the repo with `-u 0` (root in the container is `agent` on
   the host). `-u 1000:1000` maps to a subordinate uid and can't write to the worktree.
