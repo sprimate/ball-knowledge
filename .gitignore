@@ -141,3 +141,7 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# ml/ build outputs (rebuilt by ml/build_dataset.py)
+ml/cache/
+__pycache__/
