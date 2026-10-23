@@ -14,6 +14,8 @@ Everything runs in Docker (the host has no ML libraries). From the repo root:
     run python -u train.py --jobs 3      # walk-forward grid -> reports/results*.json (~1.5 h on this machine)
     run python report.py                 # -> reports/REPORT.md
     run python predict.py BOS NYK        # P(BOS beats NYK at home) from 2025-26 players
+    git -C /srv/projects/sports show origin/agent-dev:sports-stock-market/sports_data.db > /tmp/odds/sports_data.db
+    docker run --rm -u 0 -v "$PWD/ml:/work" -v /tmp/odds:/odds:ro -w /work bk-ml python -u market_check.py --odds-db /odds/sports_data.db
 
 (`-u 0`: Docker here is rootless, root in the container writes files as you.)
 
@@ -31,6 +33,9 @@ Everything runs in Docker (the host has no ML libraries). From the repo root:
   home rate, logistic regression and gradient boosting on minutes-weighted team averages. Walk-forward: test season T,
   train on seasons < T-1, early-stop on T-1. Permutation importance per play type / metric / input group.
 - `report.py`: tables, paired "does adding play types help" test, importance, team-season correlations.
+- `market_check.py`: after-the-fact comparison with the closing moneyline (sports repo `sports_data.db`,
+  `games_with_odds`, matched by game id): log loss, a blend with the market (weight fitted on the previous season),
+  flat-stake ROI at Kalshi-style prices + fee and at the posted book line -> `reports/MARKET.md`. Odds are never an input.
 - `predict.py`: ensemble trained on all seasons (`prior`, `pt+box`), predicts a matchup from a season's rosters;
   `--home-players/--away-players` override rosters.
 
